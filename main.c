@@ -65,7 +65,7 @@ int main() {
     typeDeplacements tab;
     char nomFichier[15];
     char nomFichierDep[15];
-    char touche;
+
     int nbDeplacementsTotal = 0;
     int nbDeplacements = 0;
 
@@ -229,7 +229,6 @@ void deplacer_caisse(t_Plateau plateau, t_Plateau plateauInitial,
 
 /*
  * Deplace le Sokoban selon la touche pressee et memorise le deplacement
- * Реализация принятых в main вызовов: один символ за раз
  */
 void deplacer(t_Plateau plateau, t_Plateau plateauInitial, int *nbDeplacements, char touche) {
     touche = tolower(touche);
@@ -262,7 +261,6 @@ void deplacer(t_Plateau plateau, t_Plateau plateauInitial, int *nbDeplacements, 
         deplacer_simple(plateau, plateauInitial, sokobanY, sokobanX,
                         nouvelleY, nouvelleX, destination);
         (*nbDeplacements)++;
-        /* предполагается, что history хранится отдельно в main (tab) */
     }
     else if(destination == CAISSE || destination == CAISSE_CIBLE) {
         deplacer_caisse(plateau, plateauInitial, sokobanY, sokobanX,
@@ -271,11 +269,6 @@ void deplacer(t_Plateau plateau, t_Plateau plateauInitial, int *nbDeplacements, 
         if(plateau[nouvelleY][nouvelleX] == SOKOBAN ||
            plateau[nouvelleY][nouvelleX] == SOKOBAN_CIBLE) {
             (*nbDeplacements)++;
-            /* здесь оригинально вы меняли регистр, но так и оставил */
-            if(touche >= 'a' && touche <= 'z') {
-                touche = touche - ('a' - 'A');
-            }
-            /* запись в историю делается в main (ваш tab[i] уже хранится) */
         }
     }
 }
@@ -340,7 +333,6 @@ void chargerPartie(t_Plateau plateau, char fichier[]) {
                     plateau[ligne][colonne] = VIDE;
                 }
             }
-            /* прочитать символ конца строки, если есть */
             if (fread(&finDeLigne, sizeof(char), 1, f) != 1) {
                 finDeLigne = '\n';
             }

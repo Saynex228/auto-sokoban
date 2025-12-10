@@ -1,16 +1,16 @@
-/* Auteur : Tuila Abdelkarim
+/* Auteur : Tuila Abdelkarim (Modifié pour Version Autonome)
  * Date : 06/11/2025
- * Description : Jeu Sokoban avec zoom, historique et annulation
- * Version : 2.0
+ * Description : SAÉ 1.02 - Sokoban Autonome
+ * Gestion stricte des majuscules (poussée) et minuscules (déplacement simple)
  */
 
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <termios.h>
-#include <unistd.h>
+#include <unistd.h> // Pour usleep [cite: 28]
 #include <fcntl.h>
+#include <ctype.h>  // Pour toupper/tolower [cite: 39]
 
 /* Constantes pour le plateau */
 #define TAILLE_DEPLACEMENT 1000
@@ -26,362 +26,270 @@
 /* Types personnalisés */
 typedef char typeDeplacements[TAILLE_DEPLACEMENT];
 typedef char t_Plateau[TAILLE][TAILLE];
-
-/* alias pour historique (в вашем коде использовалось t_tabDeplacement) */
 typedef typeDeplacements t_tabDeplacement;
 
-/* Les fonctions fournies par l'université (signatures conservées) */
+/* Prototypes */
 void chargerPartie(t_Plateau plateau, char fichier[]);
 void chargerDeplacements(typeDeplacements t, char fichier[], int * nb);
-
-/* Les fonctions obligatoires (signatures harmonisées avec définitions) */
-void afficher_entete(t_tabDeplacement tab, char nomFichier[],
-                     int nbDeplacements);
+void afficher_entete(t_tabDeplacement tab, char nomFichier[], int nbDeplacements, int index_actuel);
 void afficher_plateau(t_Plateau plateau);
-void deplacer(typeDeplacements tab, t_Plateau plateau,
-              t_Plateau plateauInitial, int *nbDeplacements);
-bool gagne(t_Plateau plateau);
-
-/* Les fonctions auxiliaires */
-void copier_plateau(t_Plateau source, t_Plateau destination);
 void trouver_sokoban(t_Plateau plateau, int *y, int *x);
 bool est_sur_cible(t_Plateau plateau_initial, int y, int x);
-void traiter_victoire(t_Plateau plateau, int nbDeplacements, char nomFichier[], char nomFichierDep[]);
-void deplacer_simple(t_Plateau plateau, t_Plateau plateauInitial,
-                     int sokobanY, int sokobanX, int nouvelleY,
-                     int nouvelleX, char destination);
-void deplacer_caisse(t_Plateau plateau, t_Plateau plateauInitial,
-                     int sokobanY, int sokobanX, int nouvelleY,
-                     int nouvelleX, int dy, int dx, char destination);
-void restaurer_position_sokoban(t_Plateau plateau, t_Plateau plateauInitial,
-                                int sokobanY, int sokobanX);
-void placer_sokoban(t_Plateau plateau, t_Plateau plateauInitial,
-                    int y, int x);
+void restaurer_position_sokoban(t_Plateau plateau, t_Plateau plateauInitial, int sokobanY, int sokobanX);
+void placer_sokoban(t_Plateau plateau, t_Plateau plateauInitial, int y, int x);
+bool gagne(t_Plateau plateau);
+void copier_plateau(t_Plateau source, t_Plateau destination);
 
-/*
- * Fonction principale du jeu Sokoban
- * Gère la boucle de jeu et les interactions utilisateur
- */
-int main(void) {
+/* Fonction principale de déplacement autonome avec logique stricte */
+void tenter_deplacement(t_Plateau plateau, t_Plateau plateauInitial, int *nbDeplacements, char action);
+
+int main() {
     t_Plateau plateauInitial;
     t_Plateau plateau;
     typeDeplacements tab;
-    char nomFichier[256];
-    char nomFichierDep[256];
-    int nbDeplacementsTotal = 0;
-    int nbDeplacements = 0;
+    char nomFichier[30];
+    char nomFichierDep[30];
 
-    printf("Tapez un nom de fichier : ");
-    if (scanf("%255s", nomFichier) != 1) return 1;
+    int nbDeplacementsTotal = 0; // Nombre de char dans le fichier
+    int nbDeplacementsValides = 0; // Nombre de mouvements réellement effectués
 
-    printf("Tapez un nom de fichier Deplacement : ");
-    if (scanf("%255s", nomFichierDep) != 1) return 1;
+    // 1. Demander les fichiers [cite: 8, 9]
+    printf("Tapez le nom de la partie (ex: niveau1.sok) : ");
+    if (scanf("%29s", nomFichier) != 1) return 1;
 
+    printf("Tapez le nom des deplacements (ex: niveau1.dep) : ");
+    if (scanf("%29s", nomFichierDep) != 1) return 1;
+
+    // Chargement
     chargerPartie(plateau, nomFichier);
     copier_plateau(plateau, plateauInitial);
     chargerDeplacements(tab, nomFichierDep, &nbDeplacementsTotal);
 
-    for (int i = 0; i < nbDeplacementsTotal; i++) {
-        system("clear");
-        afficher_entete(tab, nomFichier, nbDeplacements);
+    // 2. Boucle automatique [cite: 17]
+    for(int i = 0; i < nbDeplacementsTotal; i++){
+        system("clear"); // Ou "cls" sous Windows
+
+        // Affichage avant le mouvement
+        afficher_entete(tab, nomFichier, nbDeplacementsValides, i);
         afficher_plateau(plateau);
 
-        /* On appelle deplacer qui prend tout le tableau et utilise l'indice nbDeplacements */
-        deplacer(tab, plateau, plateauInitial, &nbDeplacements);
+        // Tentative de mouvement selon la lettre
+        tenter_deplacement(plateau, plateauInitial, &nbDeplacementsValides, tab[i]);
+
+        // Pause de 0.25 secondes (250 000 microsecondes)
+        usleep(500000);
     }
 
-    traiter_victoire(plateau, nbDeplacements, nomFichier, nomFichierDep);
+    // Affichage final pour le dernier état
+    system("clear");
+    afficher_entete(tab, nomFichier, nbDeplacementsValides, nbDeplacementsTotal);
+    afficher_plateau(plateau);
+
+    // 3. Bilan final [cite: 20]
+    if(gagne(plateau)) {
+        // [cite: 21, 22, 23]
+        printf("\nLa suite de deplacements %s est bien une solution pour\n", nomFichierDep);
+        printf("la partie %s.\n", nomFichier);
+        printf("Elle contient %d deplacements effectues.\n", nbDeplacementsValides);
+    }
+    else {
+        printf("\nLa suite de deplacements %s N'EST PAS une solution pour\n", nomFichierDep);
+        printf("la partie %s.\n", nomFichier);
+    }
+
     return 0;
 }
 
 /*
- * Affiche l'en-tete du jeu avec les informations et les commandes
+ * Logique stricte de déplacement :
+ * Majuscule -> Doit pousser (sinon rien)
+ * Minuscule -> Déplacement simple (sinon rien)
  */
-void afficher_entete(t_tabDeplacement tab, char nomFichier[],
-                     int nbDeplacements) {
+void tenter_deplacement(t_Plateau plateau, t_Plateau plateauInitial, int *nbDeplacements, char action) {
+    int sokobanY = 0, sokobanX = 0;
+    trouver_sokoban(plateau, &sokobanY, &sokobanX);
+
+    int dy = 0, dx = 0;
+    char direction = tolower(action); // On normalise pour trouver la direction
+    bool demande_poussee = isupper(action); // Vrai si 'G', 'D', etc.
+
+    // Mapping h/b/g/d (haut, bas, gauche, droite) vers coordonnées
+    switch(direction) {
+        case 'h': dy = -1; break; // Haut
+        case 'b': dy = +1; break; // Bas
+        case 'g': dx = -1; break; // Gauche
+        case 'd': dx = +1; break; // Droite
+        default: return; // Caractère inconnu
+    }
+
+    int nextY = sokobanY + dy;
+    int nextX = sokobanX + dx;
+
+    // Vérification limites
+    if(nextX < 0 || nextX >= TAILLE || nextY < 0 || nextY >= TAILLE) return;
+
+    char caseCible = plateau[nextY][nextX];
+
+    // --- CAS 1 :  (MAJUSCULE) ---
+    if (demande_poussee) {
+        // Si ce n'est PAS une caisse, le mouvement est invalide selon vos règles
+        if (caseCible != CAISSE && caseCible != CAISSE_CIBLE) {
+            return;
+        }
+
+        // Tentative de poussée
+        int afterBoxY = nextY + dy;
+        int afterBoxX = nextX + dx;
+
+        // Vérif limites derrière la caisse
+        if(afterBoxX < 0 || afterBoxX >= TAILLE || afterBoxY < 0 || afterBoxY >= TAILLE) return;
+
+        char derriereCaisse = plateau[afterBoxY][afterBoxX];
+
+        if (derriereCaisse == VIDE || derriereCaisse == CIBLE) {
+            // Déplacement de la caisse
+            if(derriereCaisse == CIBLE) plateau[afterBoxY][afterBoxX] = CAISSE_CIBLE;
+            else plateau[afterBoxY][afterBoxX] = CAISSE;
+
+            // Déplacement du Sokoban
+            restaurer_position_sokoban(plateau, plateauInitial, sokobanY, sokobanX);
+            placer_sokoban(plateau, plateauInitial, nextY, nextX);
+
+            (*nbDeplacements)++;
+        }
+    }
+    // --- CAS 2 :  (MINUSCULE) ---
+    else {
+        // Si c'est une caisse, le mouvement est invalide (car minuscule = pas de poussée)
+        if (caseCible == CAISSE || caseCible == CAISSE_CIBLE) {
+            return;
+        }
+
+        // Si c'est un mur
+        if (caseCible == MUR) {
+            return;
+        }
+
+        // Déplacement libre
+        if (caseCible == VIDE || caseCible == CIBLE) {
+            restaurer_position_sokoban(plateau, plateauInitial, sokobanY, sokobanX);
+            placer_sokoban(plateau, plateauInitial, nextY, nextX);
+            (*nbDeplacements)++;
+        }
+    }
+}
+
+/* Affiche l'entête avec l'indication du prochain coup */
+void afficher_entete(t_tabDeplacement tab, char nomFichier[], int nbDeplacements, int index_actuel) {
     printf("====================================================\n");
-    printf("                       SOKOBAN\n");
+    printf("              SOKOBAN AUTONOME\n");
     printf("====================================================\n");
-    printf("                    Partie : %s\n", nomFichier);
-    printf("                    Deplacements : %d\n", nbDeplacements);
+    printf(" Fichier : %s\n", nomFichier);
+    printf(" Mouvements valides : %d\n", nbDeplacements);
     printf("----------------------------------------------------\n");
-    printf("Histoire des deplacements: ");
-    for (int i = 0; i < nbDeplacements; i++) {
-        printf(" %c", tab[i]);
+    printf(" Prochain(s) : ");
+    // Affiche les 10 prochains caractères pour voir ce qui arrive
+    for(int k=0; k<15 && (index_actuel+k) < TAILLE_DEPLACEMENT && tab[index_actuel+k] != '\0'; k++){
+        if(k==0) printf("[%c] ", tab[index_actuel+k]); // Le coup actuel entre crochets
+        else printf("%c", tab[index_actuel+k]);
     }
     printf("\n====================================================\n");
 }
 
-/*
- * Affiche le plateau de jeu
- */
+/* --- Fonctions inchangées ou utilitaires --- */
+
 void afficher_plateau(t_Plateau plateau) {
-    char symbole;
-    for (int i = 0; i < TAILLE; i++) {
-        for (int j = 0; j < TAILLE; j++) {
-            symbole = plateau[i][j];
-            if (symbole == CAISSE_CIBLE) {
-                symbole = CAISSE;
-            } else if (symbole == SOKOBAN_CIBLE) {
-                symbole = SOKOBAN;
-            }
-            printf("%c", symbole);
+    for(int i = 0; i < TAILLE; i++) {
+        for(int j = 0; j < TAILLE; j++) {
+            char s = plateau[i][j];
+            if(s == CAISSE_CIBLE) s = CAISSE;       // Affichage visuel simplifié
+            else if(s == SOKOBAN_CIBLE) s = SOKOBAN;
+            printf("%c", s);
         }
         printf("\n");
     }
-    printf("\n");
-    printf("Oublie pas de fermer ta session \n");
 }
 
-/*
- * Trouve la position du Sokoban sur le plateau
- */
 void trouver_sokoban(t_Plateau plateau, int *y, int *x) {
-    for (int i = 0; i < TAILLE; i++) {
-        for (int j = 0; j < TAILLE; j++) {
-            if (plateau[i][j] == SOKOBAN ||
-                plateau[i][j] == SOKOBAN_CIBLE) {
-                *y = i;
-                *x = j;
-                return;
+    for(int i = 0; i < TAILLE; i++) {
+        for(int j = 0; j < TAILLE; j++) {
+            if(plateau[i][j] == SOKOBAN || plateau[i][j] == SOKOBAN_CIBLE) {
+                *y = i; *x = j; return;
             }
         }
     }
 }
 
-/*
- * Verifie si une position correspond a une cible sur le plateau initial
- */
 bool est_sur_cible(t_Plateau plateau_initial, int y, int x) {
     char symbole = plateau_initial[y][x];
-    return (symbole == CIBLE || symbole == CAISSE_CIBLE ||
-            symbole == SOKOBAN_CIBLE);
+    return (symbole == CIBLE || symbole == CAISSE_CIBLE || symbole == SOKOBAN_CIBLE);
 }
 
-/*
- * Restaure la case de depart du Sokoban apres deplacement
- */
-void restaurer_position_sokoban(t_Plateau plateau, t_Plateau plateauInitial,
-                                int sokobanY, int sokobanX) {
-    if (est_sur_cible(plateauInitial, sokobanY, sokobanX)) {
-        plateau[sokobanY][sokobanX] = CIBLE;
-    } else {
-        plateau[sokobanY][sokobanX] = VIDE;
-    }
+void restaurer_position_sokoban(t_Plateau plateau, t_Plateau plateauInitial, int sokobanY, int sokobanX) {
+    if(est_sur_cible(plateauInitial, sokobanY, sokobanX)) plateau[sokobanY][sokobanX] = CIBLE;
+    else plateau[sokobanY][sokobanX] = VIDE;
 }
 
-/*
- * Place le Sokoban a une nouvelle position
- */
-void placer_sokoban(t_Plateau plateau, t_Plateau plateauInitial,
-                    int y, int x) {
-    if (est_sur_cible(plateauInitial, y, x)) {
-        plateau[y][x] = SOKOBAN_CIBLE;
-    } else {
-        plateau[y][x] = SOKOBAN;
-    }
+void placer_sokoban(t_Plateau plateau, t_Plateau plateauInitial, int y, int x) {
+    if(est_sur_cible(plateauInitial, y, x)) plateau[y][x] = SOKOBAN_CIBLE;
+    else plateau[y][x] = SOKOBAN;
 }
 
-/*
- * Deplace le Sokoban seul sans caisse
- */
-void deplacer_simple(t_Plateau plateau, t_Plateau plateauInitial,
-                     int sokobanY, int sokobanX, int nouvelleY,
-                     int nouvelleX, char destination) {
-    (void)destination; /* paramètre non utilisé, suppression предупреждения */
-    restaurer_position_sokoban(plateau, plateauInitial, sokobanY, sokobanX);
-    placer_sokoban(plateau, plateauInitial, nouvelleY, nouvelleX);
-}
-
-/*
- * Deplace le Sokoban et une caisse
- */
-void deplacer_caisse(t_Plateau plateau, t_Plateau plateauInitial,
-                     int sokobanY, int sokobanX, int nouvelleY,
-                     int nouvelleX, int dy, int dx, char destination) {
-    int nouvelleCaisseY = nouvelleY + dy;
-    int nouvelleCaisseX = nouvelleX + dx;
-
-    if (nouvelleCaisseX < 0 || nouvelleCaisseX >= TAILLE ||
-        nouvelleCaisseY < 0 || nouvelleCaisseY >= TAILLE) {
-        return;
-    }
-
-    char derriereCaisse = plateau[nouvelleCaisseY][nouvelleCaisseX];
-
-    if (derriereCaisse == VIDE || derriereCaisse == CIBLE) {
-        if (derriereCaisse == CIBLE) {
-            plateau[nouvelleCaisseY][nouvelleCaisseX] = CAISSE_CIBLE;
-        } else {
-            plateau[nouvelleCaisseY][nouvelleCaisseX] = CAISSE;
-        }
-
-        placer_sokoban(plateau, plateauInitial, nouvelleY, nouvelleX);
-        restaurer_position_sokoban(plateau, plateauInitial,
-                                   sokobanY, sokobanX);
-    }
-    (void)destination; /* suppression предупреждения о неиспользуемом параметре */
-}
-
-/*
- * Deplace le Sokoban selon la touche pressee et memorise le deplacement
- * Теперь эта функция использует массив deplacements et индекс nbDeplacements.
- */
-void deplacer(typeDeplacements tab, t_Plateau plateau,
-              t_Plateau plateauInitial, int *nbDeplacements) {
-    if (*nbDeplacements >= TAILLE_DEPLACEMENT) return;
-
-    int sokobanY = 0, sokobanX = 0;
-    trouver_sokoban(plateau, &sokobanY, &sokobanX);
-
-    char touche = tab[*nbDeplacements];
-    int dx = 0;
-    int dy = 0;
-    switch (touche) {
-        case 'q': dx = -1; break;
-        case 'd': dx = +1; break;
-        case 'z': dy = -1; break;
-        case 's': dy = +1; break;
-        default: return;
-    }
-
-    int nouvelleX = sokobanX + dx;
-    int nouvelleY = sokobanY + dy;
-
-    if (nouvelleX < 0 || nouvelleX >= TAILLE ||
-        nouvelleY < 0 || nouvelleY >= TAILLE) {
-        return;
-    }
-
-    char destination = plateau[nouvelleY][nouvelleX];
-
-    if (destination == MUR) {
-        return;
-    } else if (destination == VIDE || destination == CIBLE) {
-        deplacer_simple(plateau, plateauInitial, sokobanY, sokobanX,
-                        nouvelleY, nouvelleX, destination);
-        (*nbDeplacements)++;
-        tab[*nbDeplacements - 1] = touche;
-    } else if (destination == CAISSE || destination == CAISSE_CIBLE) {
-        deplacer_caisse(plateau, plateauInitial, sokobanY, sokobanX,
-                        nouvelleY, nouvelleX, dy, dx, destination);
-
-        if (plateau[nouvelleY][nouvelleX] == SOKOBAN ||
-            plateau[nouvelleY][nouvelleX] == SOKOBAN_CIBLE) {
-            (*nbDeplacements)++;
-            if (touche >= 'a' && touche <= 'z') {
-                touche = (char)(touche - ('a' - 'A'));
-            }
-            tab[*nbDeplacements - 1] = touche;
-        }
-    }
-}
-
-/*
- * Verifie si toutes les caisses sont placees sur les cibles
- */
 bool gagne(t_Plateau plateau) {
-    for (int i = 0; i < TAILLE; i++) {
-        for (int j = 0; j < TAILLE; j++) {
-            if (plateau[i][j] == CAISSE) {
-                return false;
-            }
+    for(int i = 0; i < TAILLE; i++) {
+        for(int j = 0; j < TAILLE; j++) {
+            if(plateau[i][j] == CAISSE) return false;
         }
     }
     return true;
 }
 
-/*
- * Copie le contenu d'un plateau dans un autre
- */
 void copier_plateau(t_Plateau source, t_Plateau destination) {
-    for (int i = 0; i < TAILLE; i++) {
-        for (int j = 0; j < TAILLE; j++) {
+    for(int i = 0; i < TAILLE; i++)
+        for(int j = 0; j < TAILLE; j++)
             destination[i][j] = source[i][j];
-        }
-    }
 }
 
-/*
- * Traite la victoire du joueur et propose de sauvegarder
- */
-void traiter_victoire(t_Plateau plateau, int nbDeplacements, char nomFichier[], char nomFichierDep[]) {
-    if (gagne(plateau)) {
-        printf("La suite de deplacements %s est bien une solution pour la partie %s.\n", nomFichierDep, nomFichier);
-        printf("Elle contient %d deplacements.\n", nbDeplacements);
-    } else {
-        printf("\nLa suite de deplacements %s N'EST PAS une solution pour la partie %s.\n", nomFichierDep, nomFichier);
-    }
-}
-
-/*
- * Fonctions de chargement/enregistrement (ajustées pour signatures correctes)
- */
-void chargerPartie(t_Plateau plateau, char fichier[]) {
+void chargerPartie(t_Plateau plateau, char fichier[]){
     FILE * f;
     char finDeLigne;
 
     f = fopen(fichier, "r");
-    if (f == NULL) {
-        printf("ERREUR SUR FICHIER\n");
+    if (f==NULL){
+        printf("ERREUR SUR FICHIER");
         exit(EXIT_FAILURE);
     } else {
-        for (int ligne = 0; ligne < TAILLE; ligne++) {
-            for (int colonne = 0; colonne < TAILLE; colonne++) {
-                if (fread(&plateau[ligne][colonne], sizeof(char), 1, f) != 1) {
-                    plateau[ligne][colonne] = VIDE;
-                }
+        for (int ligne=0 ; ligne<TAILLE ; ligne++){
+            for (int colonne=0 ; colonne<TAILLE ; colonne++){
+                fread(&plateau[ligne][colonne], sizeof(char), 1, f);
             }
-            /* lire fin de ligne si présent */
             fread(&finDeLigne, sizeof(char), 1, f);
         }
         fclose(f);
     }
 }
 
-void enregistrerPartie(t_Plateau plateau, char fichier[]) {
-    FILE * f;
-    char finDeLigne = '\n';
 
-    f = fopen(fichier, "w");
-    if (f == NULL) return;
-    for (int ligne = 0; ligne < TAILLE; ligne++) {
-        for (int colonne = 0; colonne < TAILLE; colonne++) {
-            fwrite(&plateau[ligne][colonne], sizeof(char), 1, f);
-        }
-        fwrite(&finDeLigne, sizeof(char), 1, f);
-    }
-    fclose(f);
-}
 
-void enregistrerDeplacements(t_tabDeplacement t, int nb, char fic[]) {
-    FILE * f;
-
-    f = fopen(fic, "w");
-    if (f == NULL) return;
-    fwrite(t, sizeof(char), nb, f);
-    fclose(f);
-}
-
-void chargerDeplacements(typeDeplacements t, char fichier[], int * nb) {
+void chargerDeplacements(typeDeplacements t, char fichier[], int * nb){
     FILE * f;
     char dep;
     *nb = 0;
 
     f = fopen(fichier, "r");
-    if (f == NULL) {
+    if (f==NULL){
         printf("FICHIER NON TROUVE\n");
-        return;
     } else {
-        if (fread(&dep, sizeof(char), 1, f) != 1) {
+        fread(&dep, sizeof(char), 1, f);
+        if (feof(f)){
             printf("FICHIER VIDE\n");
-            fclose(f);
-            return;
         } else {
-            do {
+            while (!feof(f)){
+
                 t[*nb] = dep;
                 (*nb)++;
-            } while (fread(&dep, sizeof(char), 1, f) == 1 && *nb < TAILLE_DEPLACEMENT);
+                fread(&dep, sizeof(char), 1, f);
+            }
         }
     }
     fclose(f);
