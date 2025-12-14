@@ -1,9 +1,3 @@
-/* Auteur : Tuila Abdelkarim (Modifié pour Version Autonome)
- * Date : 06/11/2025
- * Description : SAÉ 1.02 - Sokoban Autonome
- * Gestion stricte des majuscules (poussée) et minuscules (déplacement simple)
- */
-
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -11,6 +5,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <ctype.h>
+
 
 #define TAILLE_DEPLACEMENT 1000
 #define TAILLE 12
@@ -26,17 +21,93 @@ typedef char typeDeplacements[TAILLE_DEPLACEMENT];
 typedef char t_Plateau[TAILLE][TAILLE];
 typedef typeDeplacements t_tabDeplacement;
 
+/**
+ * @brief Charge l'état initial du plateau de jeu à partir d'un fichier.
+ * @param plateau Le tableau 2D qui recevra les données du jeu.
+ * @param fichier Le nom du fichier source (.sok).
+ */
 void chargerPartie(t_Plateau plateau, char fichier[]);
+
+/**
+ * @brief Charge la séquence de déplacements à partir d'un fichier.
+ * @param t Le tableau où la séquence de déplacements sera stockée.
+ * @param fichier Le nom du fichier source (.dep).
+ * @param nb Pointeur vers le nombre total de déplacements lus.
+ */
 void chargerDeplacements(typeDeplacements t, char fichier[], int * nb);
+
+/**
+ * @brief Affiche l'entête de la simulation (nom du fichier, compteurs, prochains mouvements).
+ * @param tab Le tableau des déplacements.
+ * @param nomFichier Le nom du fichier de partie.
+ * @param nbDeplacements Le nombre de mouvements valides effectués.
+ * @param index_actuel L'index du mouvement en cours.
+ */
 void afficher_entete(t_tabDeplacement tab, char nomFichier[], int nbDeplacements, int index_actuel);
+
+/**
+ * @brief Affiche l'état actuel du plateau.
+ * @param plateau Le tableau 2D représentant l'état du jeu.
+ */
 void afficher_plateau(t_Plateau plateau);
+
+/**
+ * @brief Recherche les coordonnées du Sokoban.
+ * @param plateau Le tableau 2D du jeu.
+ * @param y Pointeur pour stocker la ligne du Sokoban.
+ * @param x Pointeur pour stocker la colonne du Sokoban.
+ */
 void trouver_sokoban(t_Plateau plateau, int *y, int *x);
+
+/**
+ * @brief Vérifie si la position donnée était initialement une cible.
+ * @param plateau_initial L'état initial du plateau (pour vérifier les cibles fixes).
+ * @param y Ligne à vérifier.
+ * @param x Colonne à vérifier.
+ * @return Vrai si la position est une cible.
+ **/
 bool est_sur_cible(t_Plateau plateau_initial, int y, int x);
+
+/**
+ * @brief Restaure la case où se trouvait Sokoban (VIDE ou CIBLE).
+ * @param plateau L'état actuel du plateau.
+ * @param plateauInitial L'état initial du plateau.
+ * @param sokobanY Ligne de l'ancienne position de Sokoban.
+ * @param sokobanX Colonne de l'ancienne position de Sokoban.
+ */
 void restaurer_position_sokoban(t_Plateau plateau, t_Plateau plateauInitial, int sokobanY, int sokobanX);
+
+/**
+ * @brief Place le Sokoban à une nouvelle position (SOKOBAN ou SOKOBAN_CIBLE).
+ * @param plateau L'état actuel du plateau.
+ * @param plateauInitial L'état initial du plateau.
+ * @param y Nouvelle ligne.
+ * @param x Nouvelle colonne.
+ */
 void placer_sokoban(t_Plateau plateau, t_Plateau plateauInitial, int y, int x);
+
+/**
+ * @brief Vérifie si la partie est gagnée (toutes les caisses sur les cibles).
+ * @param plateau L'état actuel du plateau.
+ * @return Vrai si la partie est gagnée.
+ */
 bool gagne(t_Plateau plateau);
+
+/**
+ * @brief Copie un plateau dans un autre.
+ * @param source Le plateau source.
+ * @param destination Le plateau de destination.
+ */
 void copier_plateau(t_Plateau source, t_Plateau destination);
 
+/**
+ * @brief Tente d'effectuer un déplacement.
+ * Gère le mouvement simple et la poussée de caisse.
+ * @param plateau L'état actuel du plateau.
+ * @param plateauInitial L'état initial (pour les cibles).
+ * @param nbDeplacements Pointeur vers le compteur de mouvements valides.
+ * @param action Le caractère de l'action (h/b/g/d pour simple, H/B/G/D pour pousser).
+ */
 void tenter_deplacement(t_Plateau plateau, t_Plateau plateauInitial, int *nbDeplacements, char action);
 
 int main() {
@@ -50,10 +121,10 @@ int main() {
     int nbDeplacementsValides = 0;
 
     printf("Tapez le nom de la partie (ex: niveau1.sok) : ");
-    if (scanf("%29s", nomFichier) != 1) return 1;
+    scanf("%s", nomFichier);
 
     printf("Tapez le nom des deplacements (ex: niveau1.dep) : ");
-    if (scanf("%29s", nomFichierDep) != 1) return 1;
+    scanf("%s", nomFichierDep);
 
     chargerPartie(plateau, nomFichier);
     copier_plateau(plateau, plateauInitial);
@@ -67,7 +138,7 @@ int main() {
 
         tenter_deplacement(plateau, plateauInitial, &nbDeplacementsValides, tab[i]);
 
-        usleep(200000);
+        usleep(500000);
     }
 
     system("clear");
@@ -154,9 +225,9 @@ void afficher_entete(t_tabDeplacement tab, char nomFichier[], int nbDeplacements
     printf("              SOKOBAN AUTONOME\n");
     printf("====================================================\n");
     printf(" Fichier : %s\n", nomFichier);
-    printf(" Mouvements valides : %d\n", nbDeplacements);
+    printf(" Mouvements : %d\n", nbDeplacements);
     printf("----------------------------------------------------\n");
-    printf(" Prochain(s) : ");
+    printf(" Prochain : ");
     for(int k=0; k<15 && (index_actuel+k) < TAILLE_DEPLACEMENT && tab[index_actuel+k] != '\0'; k++){
         if(k==0) printf("[%c] ", tab[index_actuel+k]);
         else printf("%c", tab[index_actuel+k]);
