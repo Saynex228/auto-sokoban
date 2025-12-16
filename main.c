@@ -138,7 +138,7 @@ int main() {
 
         tenter_deplacement(plateau, plateauInitial, &nbDeplacementsValides, tab[i]);
 
-        usleep(500000);
+        usleep(50000);
     }
 
     system("clear");
